@@ -1,0 +1,1 @@
+# stock_simul_1min
