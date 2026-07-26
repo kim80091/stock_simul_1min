@@ -466,7 +466,7 @@ Chart.register({id:'ann',afterDraw(chart){
       ctx.lineTo(x.getPixelForValue(a.x2),y.getPixelForValue(a.yv));
       ctx.stroke();
     }else if(a.t==='vline'){
-      ctx.strokeStyle='rgba(120,120,120,.55)';ctx.lineWidth=1;ctx.setLineDash([4,3]);
+      ctx.strokeStyle=a.cl||'rgba(120,120,120,.55)';ctx.lineWidth=a.w||1;ctx.setLineDash(a.dash||[4,3]);
       const px=x.getPixelForValue(a.xi);
       ctx.beginPath();
       ctx.moveTo(px,chartArea.top);ctx.lineTo(px,chartArea.bottom);
@@ -758,6 +758,13 @@ function buildPA(){
   if(window._todayStartIdx!==undefined&&window._todayStartIdx>=s&&window._todayStartIdx<candles.length){
     const li=pad+(window._todayStartIdx-s);
     list.push({t:'vline',xi:li-.5});
+  }
+  // 일목균형표 ON일 때: 현재(마지막) 캔들이 선행스팬(구름)에 투영되는 위치를 긴 세로줄로 표시
+  // (선행스팬은 ICHI_SHIFT칸 앞서 그려지므로, "지금"에 해당하는 구름 지점은
+  //  현재 캔들 위치+ICHI_SHIFT 칸에 있음 — 그 지점을 눈에 띄게 짚어줌)
+  if(showIchi&&candles.length>0){
+    const curLi=pad+(candles.length-1-s)+ICHI_SHIFT;
+    list.push({t:'vline',xi:curLi,cl:'rgba(0,0,0,.75)',w:1.5,dash:[2,3]});
   }
   return list;
 }
