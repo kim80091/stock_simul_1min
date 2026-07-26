@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>1분봉 실전차트 매매 시뮬레이션 (이틀치, 필터 없음)</title>
+<title>1분봉 실전차트 시뮬레이션</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;background:#fff;color:#1a1a1a;padding:10px;font-size:13px;}
@@ -73,7 +73,7 @@ button:active{opacity:.8;}
 
 <div id="overlay"><div class="spin"></div><div id="ovmsg">로딩 중...</div></div>
 
-<div class="pgtitle">1분봉 실전차트 매매 연습</div>
+<div class="pgtitle">1분봉 실전차트 시뮬레이션</div>
 <div id="stockRow" class="show">
   <select id="stockSel"><option>종목 로딩 중...</option></select>
 </div>
@@ -82,7 +82,7 @@ button:active{opacity:.8;}
   <button id="btnReset" title="새로고침">↺</button>
   <button id="btnRandStock">랜덤</button>
 </div>
-<div class="banner breal" id="banner">📈 이틀치 전 종목 매매 시뮬레이션 (필터 없음) — 08:00 장 시작부터 재생</div>
+<div class="banner breal" id="banner">📈 실제 종목 매매연습 — 08:00 장 시작부터 재생</div>
 
 <div class="row">
   <span>원금</span>
@@ -187,7 +187,7 @@ button:active{opacity:.8;}
 (function(){
 'use strict';
 
-const WORKER='https://candle-sim-2day.kim80091.workers.dev'; // TODO: 실제 배포 후 주소 확인/교체
+const WORKER='https://candle-practice-1min.kim80091.workers.dev'; // TODO: 실제 배포 후 주소 확인/교체
 const FEE=.0023, VP=8, VIS=60; // 키움증권 실수수료: 매수 0.015% + 매도 0.215% = 왕복 0.230%
 let stockList=[], curStock=null;
 let shuffleBag=[]; // "다른 종목" 뽑을 때 다 한 번씩 나올 때까지 중복 안 되게 뽑는 통
@@ -1073,7 +1073,7 @@ async function loadStockList(){
     const js=await res.json();
     hideOv();
     if(!js.stocks||!js.stocks.length){
-      alert('저장된 종목이 없습니다.\nstock_practice_1min 수집이 끝난 뒤 sim2day_build_and_upload.py를 실행하세요.');
+      alert('저장된 종목이 없습니다.\ntoss_1min_collector.py를 먼저 실행하세요.');
       return;
     }
     stockList=js.stocks;
