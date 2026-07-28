@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>1분봉 실전차트 시뮬레이션</title>
+<title>1분봉 실전차트 매매 시뮬레이션 (이틀치, 필터 없음)</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;background:#fff;color:#1a1a1a;padding:10px;font-size:13px;}
@@ -82,7 +82,7 @@ button:active{opacity:.8;}
   <button id="btnReset" title="새로고침">↺</button>
   <button id="btnRandStock">랜덤</button>
 </div>
-<div class="banner breal" id="banner">📈 실제 종목 매매연습 — 08:00 장 시작부터 재생</div>
+<div class="banner breal" id="banner">📈 이틀치 전 종목 매매 시뮬레이션 (필터 없음) — 08:00 장 시작부터 재생</div>
 
 <div class="row">
   <span>원금</span>
@@ -187,7 +187,7 @@ button:active{opacity:.8;}
 (function(){
 'use strict';
 
-const WORKER='https://candle-practice-1min.kim80091.workers.dev'; // TODO: 실제 배포 후 주소 확인/교체
+const WORKER='https://candle-sim-2day.kim80091.workers.dev'; // TODO: 실제 배포 후 주소 확인/교체
 const FEE=.0023, VP=8, VIS=60; // 키움증권 실수수료: 매수 0.015% + 매도 0.215% = 왕복 0.230%
 let stockList=[], curStock=null;
 let shuffleBag=[]; // "다른 종목" 뽑을 때 다 한 번씩 나올 때까지 중복 안 되게 뽑는 통
@@ -760,8 +760,6 @@ function buildPA(){
     list.push({t:'vline',xi:li-.5});
   }
   // 일목균형표 ON일 때: 현재(마지막) 캔들이 선행스팬(구름)에 투영되는 위치를 긴 세로줄로 표시
-  // (선행스팬은 ICHI_SHIFT칸 앞서 그려지므로, "지금"에 해당하는 구름 지점은
-  //  현재 캔들 위치+ICHI_SHIFT 칸에 있음 — 그 지점을 눈에 띄게 짚어줌)
   if(showIchi&&candles.length>0){
     const curLi=pad+(candles.length-1-s)+ICHI_SHIFT;
     list.push({t:'vline',xi:curLi,cl:'rgba(0,0,0,.75)',w:1.5,dash:[2,3]});
@@ -1076,11 +1074,11 @@ function resetStats(){
 async function loadStockList(){
   try{
     showOv('종목 목록 불러오는 중...');
-    const res=await fetch(WORKER+'/list1m');
+    const res=await fetch(WORKER+'/list1m',{cache:'no-store'});
     const js=await res.json();
     hideOv();
     if(!js.stocks||!js.stocks.length){
-      alert('저장된 종목이 없습니다.\ntoss_1min_collector.py를 먼저 실행하세요.');
+      alert('저장된 종목이 없습니다.\nstock_practice_1min 수집이 끝난 뒤 sim2day_build_and_upload.py를 실행하세요.');
       return;
     }
     stockList=js.stocks;
@@ -1106,7 +1104,7 @@ async function loadReal(code, date){
   showOv(code+' ('+date+') 불러오는 중...');
   stopT();
   try{
-    const res=await fetch(WORKER+'/ohlcv1m?code='+code+'&date='+date);
+    const res=await fetch(WORKER+'/ohlcv1m?code='+code+'&date='+date,{cache:'no-store'});
     const js=await res.json();
     if(js.error)throw new Error(js.error);
     if(!js.candles||js.candles.length<10)throw new Error('데이터 부족');
@@ -1119,7 +1117,7 @@ async function loadReal(code, date){
     let visiblePrefix=[];
     histCandles=[];
     try{
-      const tres=await fetch(WORKER+'/tail1m?code='+code+'&date='+date);
+      const tres=await fetch(WORKER+'/tail1m?code='+code+'&date='+date,{cache:'no-store'});
       const tjs=await tres.json();
       if(tjs.tail&&tjs.tail.length){
         const tail=tjs.tail; // 오래된→최신 순
