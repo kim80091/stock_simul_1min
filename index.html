@@ -913,7 +913,7 @@ function updateUI(){
   if(pos){
     const net=(last.close-pos.p)/pos.p*100-FEE*100;
     const el=document.getElementById('vPnl');
-    el.textContent=net.toFixed(1)+'%';el.style.color=net>=0?pC:lC;
+    el.textContent=net.toFixed(2)+'%';el.style.color=net>=0?pC:lC;
     const pctTxt=pos.frac<0.999?' ('+Math.round(pos.frac*100)+'% 보유)':'';
     document.getElementById('vHold').textContent=(elapsed-pos.d)+'분째'+pctTxt;
   }else{
@@ -929,7 +929,7 @@ function updateUI(){
   pel.textContent=(pnlAmt>=0?'+':'')+fp(pnlAmt)+'원';pel.style.color=pnlAmt>=0?pC:lC;
   const anel=document.getElementById('vAnnual');
   if(tPnl!==0||wins+losses>0){
-    anel.textContent=tPnl.toFixed(1)+'%';
+    anel.textContent=tPnl.toFixed(2)+'%';
     anel.style.color=tPnl>0?pC:(tPnl<0?lC:'#1a1a1a');
   }else{anel.textContent='-';anel.style.color='#1a1a1a';}
   const tot=wins+losses;
