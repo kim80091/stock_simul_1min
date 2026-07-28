@@ -106,6 +106,16 @@ button:active{opacity:.8;}
 </div>
 
 <div class="row" style="margin-bottom:4px;">
+  <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;color:#E24B4A;font-weight:600;">
+    <input type="checkbox" id="ma5Toggle" style="width:15px;height:15px;cursor:pointer;">
+    MA5
+  </label>
+  <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;color:#F5A623;font-weight:600;">
+    <input type="checkbox" id="ma10Toggle" style="width:15px;height:15px;cursor:pointer;" checked>
+    MA10
+  </label>
+</div>
+<div class="row" style="margin-bottom:4px;">
   <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;color:#9C6ADE;font-weight:600;">
     <input type="checkbox" id="bbToggle" style="width:15px;height:15px;cursor:pointer;">
     볼린저밴드(20,2)
@@ -145,6 +155,10 @@ button:active{opacity:.8;}
 <div class="cbox">
   <div class="ddrow"><span>MA10과 캔들위치</span><span class="ddval" id="vMaPos" style="color:#555;">-</span></div>
   <div class="cwrap" style="height:40px;"><canvas id="cMaPos"></canvas></div>
+</div>
+<div class="cbox">
+  <div class="ddrow"><span>MA5과 캔들위치</span><span class="ddval" id="vMaPos5" style="color:#555;">-</span></div>
+  <div class="cwrap" style="height:40px;"><canvas id="cMaPos5"></canvas></div>
 </div>
 <div class="cbox">
   <div class="ddrow"><span>볼린저밴드 이격</span><span class="ddval" id="vBbDev" style="color:#555;">-</span></div>
@@ -259,9 +273,9 @@ function bbStats(idx){
 }
 function bbUpper(idx){const b=bbStats(idx);return b?b.mid+BB_MULT*b.sd:null;}
 function bbLower(idx){const b=bbStats(idx);return b?b.mid-BB_MULT*b.sd:null;}
-// MA10과 캔들위치: 종가-MA10 차이값 (막대 높이). 종가>=MA10 이면 빨강, 종가<MA10 이면 파랑
-function maPosDiff(idx){
-  const m=ma(10,idx);
+// MA와 캔들위치: 종가-MA 차이값 (막대 높이). 종가>=MA 이면 빨강, 종가<MA 이면 파랑
+function maPosDiff(idx,period){
+  const m=ma(period||10,idx);
   const c=closeAt(idx);
   if(m===null||c===undefined)return null;
   if(c>m)return 1;
@@ -660,6 +674,23 @@ const MPC=new Chart(document.getElementById('cMaPos'),{
     plugins:{legend:{display:false},tooltip:{enabled:false}}
   },plugins:[]
 });
+// MA5과 캔들위치 차트 (MA10과 캔들위치와 동일한 색 규칙 — 종가>=MA5 빨강 / 종가<MA5 파랑)
+const MP5C=new Chart(document.getElementById('cMaPos5'),{
+  type:'bar',
+  data:{labels:[],datasets:[{label:'MA5위치',data:[],backgroundColor:[]}]},
+  options:{
+    responsive:true,maintainAspectRatio:false,animation:false,
+    layout:{padding:{left:4,right:4}},
+    scales:{
+      x:{ticks:{display:false},grid:{display:false},min:0,max:VIS+VP-1+ICHI_SHIFT},
+      y:{position:'right',min:-1.5,max:1.5,
+        ticks:{font:{size:10},padding:6,callback:v=>'',stepSize:1},
+        afterFit:s=>{s.width=64;},
+        grid:{color:'rgba(128,128,128,.1)'}}
+    },
+    plugins:{legend:{display:false},tooltip:{enabled:false}}
+  },plugins:[]
+});
 // 볼린저밴드 이격 차트 (-10 하한선 ~ +10 상한선)
 const BDC=new Chart(document.getElementById('cBbDev'),{
   type:'line',
@@ -709,9 +740,12 @@ function fmtEok(v){
 
 let showBB=false; // 볼린저밴드 표시 여부 (토글)
 let showIchi=false; // 일목균형표 표시 여부 (토글)
+let showMA5=false; // MA5 표시 여부 (토글)
+let showMA10=true; // MA10 표시 여부 (토글, 기본 표시)
 
 PC.data.datasets=[
-  {label:'MA10',data:[],borderColor:'#F5A623',borderWidth:1.3,pointRadius:0,tension:.1,spanGaps:true},
+  {label:'MA5',data:[],borderColor:'#E24B4A',borderWidth:1.3,pointRadius:0,tension:.1,spanGaps:true,hidden:!showMA5},
+  {label:'MA10',data:[],borderColor:'#F5A623',borderWidth:1.3,pointRadius:0,tension:.1,spanGaps:true,hidden:!showMA10},
   {label:'MA40',data:[],borderColor:'#0F6E56',borderWidth:1.3,pointRadius:0,tension:.1,spanGaps:true},
   {label:'BB상단',data:[],borderColor:'#9C6ADE',borderWidth:1,pointRadius:0,tension:.1,spanGaps:true,borderDash:[4,3],hidden:!showBB},
   {label:'BB하단',data:[],borderColor:'#9C6ADE',borderWidth:1,pointRadius:0,tension:.1,spanGaps:true,borderDash:[4,3],hidden:!showBB,fill:2,backgroundColor:'rgba(156,106,222,0.07)'},
@@ -773,12 +807,13 @@ function refresh(){
   if(!candles.length)return;
   const s=vs(),lbls=mkLbl();
   PC.data.labels=mkLblPC();
-  PC.data.datasets[0].data=vdata(i=>ma(10,i));
-  PC.data.datasets[1].data=vdata(i=>ma(40,i));
-  PC.data.datasets[2].data=vdata(i=>bbUpper(i));
-  PC.data.datasets[3].data=vdata(i=>bbLower(i));
-  PC.data.datasets[4].data=vdataShift(i=>ichiSenkouA(i),ICHI_SHIFT);
-  PC.data.datasets[5].data=vdataShift(i=>ichiSenkouB(i),ICHI_SHIFT);
+  PC.data.datasets[0].data=vdata(i=>ma(5,i));
+  PC.data.datasets[1].data=vdata(i=>ma(10,i));
+  PC.data.datasets[2].data=vdata(i=>ma(40,i));
+  PC.data.datasets[3].data=vdata(i=>bbUpper(i));
+  PC.data.datasets[4].data=vdata(i=>bbLower(i));
+  PC.data.datasets[5].data=vdataShift(i=>ichiSenkouA(i),ICHI_SHIFT);
+  PC.data.datasets[6].data=vdataShift(i=>ichiSenkouB(i),ICHI_SHIFT);
   PC.options.plugins.ann.list=buildPA();
   let mn=Infinity,mx=-Infinity;
   for(let i=s;i<candles.length;i++){
@@ -868,15 +903,27 @@ function refresh(){
 
   // MA10과 캔들위치 차트 (종가>=MA10 빨강, 종가<MA10 파랑)
   MPC.data.labels=lbls;
-  const mpData=vdata(i=>maPosDiff(i));
+  const mpData=vdata(i=>maPosDiff(i,10));
   MPC.data.datasets[0].data=mpData;
   MPC.data.datasets[0].backgroundColor=mpData.map(v=>v===null?'rgba(0,0,0,0)':v>0?'#F5A623':v<0?'#38B6E0':'#1a1a1a');
-  const lastMaPos=maPosDiff(candles.length-1);
+  const lastMaPos=maPosDiff(candles.length-1,10);
   const maPosEl=document.getElementById('vMaPos');
   if(lastMaPos===null){maPosEl.textContent='-';maPosEl.style.color='#555';}
   else if(lastMaPos>0){maPosEl.textContent='위';maPosEl.style.color='#F5A623';}
   else if(lastMaPos<0){maPosEl.textContent='아래';maPosEl.style.color='#38B6E0';}
   else{maPosEl.textContent='동일';maPosEl.style.color='#1a1a1a';}
+
+  // MA5과 캔들위치 차트 (MA10과 캔들위치와 동일한 색 규칙 — 종가>=MA5 빨강, 종가<MA5 파랑)
+  MP5C.data.labels=lbls;
+  const mp5Data=vdata(i=>maPosDiff(i,5));
+  MP5C.data.datasets[0].data=mp5Data;
+  MP5C.data.datasets[0].backgroundColor=mp5Data.map(v=>v===null?'rgba(0,0,0,0)':v>0?'#F5A623':v<0?'#38B6E0':'#1a1a1a');
+  const lastMaPos5=maPosDiff(candles.length-1,5);
+  const maPos5El=document.getElementById('vMaPos5');
+  if(lastMaPos5===null){maPos5El.textContent='-';maPos5El.style.color='#555';}
+  else if(lastMaPos5>0){maPos5El.textContent='위';maPos5El.style.color='#F5A623';}
+  else if(lastMaPos5<0){maPos5El.textContent='아래';maPos5El.style.color='#38B6E0';}
+  else{maPos5El.textContent='동일';maPos5El.style.color='#1a1a1a';}
 
   // 볼린저밴드 이격 차트 (-10~+10)
   BDC.data.labels=lbls;
@@ -897,7 +944,7 @@ function refresh(){
   const lastValue=candles[candles.length-1].volume*candles[candles.length-1].close;
   document.getElementById('vValue').textContent=fmtEok(lastValue)+'억';
 
-  PC.update('none');MT.update('none');MC.update('none');OC.update('none');VLC.update('none');BDC.update('none');MPC.update('none');OTC.update('none');
+  PC.update('none');MT.update('none');MC.update('none');OC.update('none');VLC.update('none');BDC.update('none');MPC.update('none');MP5C.update('none');OTC.update('none');
   updateUI();
 }
 
@@ -1321,15 +1368,27 @@ document.getElementById('btnAiRequest').onclick=()=>{
 document.getElementById('bbToggle').onchange=(e)=>{
   showBB=e.target.checked;
   localStorage.setItem('bb_enabled',showBB?'1':'0');
-  PC.data.datasets[2].hidden=!showBB;
   PC.data.datasets[3].hidden=!showBB;
+  PC.data.datasets[4].hidden=!showBB;
   refresh();
 };
 document.getElementById('ichiToggle').onchange=(e)=>{
   showIchi=e.target.checked;
   localStorage.setItem('ichi_enabled',showIchi?'1':'0');
-  PC.data.datasets[4].hidden=!showIchi;
   PC.data.datasets[5].hidden=!showIchi;
+  PC.data.datasets[6].hidden=!showIchi;
+  refresh();
+};
+document.getElementById('ma5Toggle').onchange=(e)=>{
+  showMA5=e.target.checked;
+  localStorage.setItem('ma5_enabled',showMA5?'1':'0');
+  PC.data.datasets[0].hidden=!showMA5;
+  refresh();
+};
+document.getElementById('ma10Toggle').onchange=(e)=>{
+  showMA10=e.target.checked;
+  localStorage.setItem('ma10_enabled',showMA10?'1':'0');
+  PC.data.datasets[1].hidden=!showMA10;
   refresh();
 };
 document.getElementById('btnLoad').onclick=()=>{
@@ -1376,8 +1435,8 @@ try{
   if(savedBB==='1'){
     showBB=true;
     document.getElementById('bbToggle').checked=true;
-    PC.data.datasets[2].hidden=false;
     PC.data.datasets[3].hidden=false;
+    PC.data.datasets[4].hidden=false;
   }
 }catch(e){/* localStorage 사용 불가 환경이면 그냥 기본값(꺼짐) 유지 */}
 
@@ -1387,10 +1446,30 @@ try{
   if(savedIchi==='1'){
     showIchi=true;
     document.getElementById('ichiToggle').checked=true;
-    PC.data.datasets[4].hidden=false;
     PC.data.datasets[5].hidden=false;
+    PC.data.datasets[6].hidden=false;
   }
 }catch(e){/* localStorage 사용 불가 환경이면 그냥 기본값(꺼짐) 유지 */}
+
+// 저장된 MA5 설정 복원 (기본값 꺼짐)
+try{
+  const savedMA5=localStorage.getItem('ma5_enabled');
+  if(savedMA5==='1'){
+    showMA5=true;
+    document.getElementById('ma5Toggle').checked=true;
+    PC.data.datasets[0].hidden=false;
+  }
+}catch(e){/* localStorage 사용 불가 환경이면 그냥 기본값(꺼짐) 유지 */}
+
+// 저장된 MA10 설정 복원 (기본값 켜짐 — 저장된 값이 명시적으로 '0'일 때만 끔)
+try{
+  const savedMA10=localStorage.getItem('ma10_enabled');
+  if(savedMA10==='0'){
+    showMA10=false;
+    document.getElementById('ma10Toggle').checked=false;
+    PC.data.datasets[1].hidden=true;
+  }
+}catch(e){/* localStorage 사용 불가 환경이면 그냥 기본값(켜짐) 유지 */}
 
 // 저장된 속도/원금 설정 복원
 try{
