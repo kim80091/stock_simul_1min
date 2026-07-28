@@ -155,7 +155,7 @@ button:active{opacity:.8;}
   <div class="cwrap" style="height:40px;"><canvas id="cMaPos"></canvas></div>
 </div>
 <div class="cbox">
-  <div class="ddrow"><span>MA5과 캔들위치</span><span class="ddval" id="vMaPos5" style="color:#555;">-</span></div>
+  <div class="ddrow"><span>MA5와 캔들위치</span><span class="ddval" id="vMaPos5" style="color:#555;">-</span></div>
   <div class="cwrap" style="height:40px;"><canvas id="cMaPos5"></canvas></div>
 </div>
 <div class="cbox">
@@ -390,6 +390,20 @@ function ma40Cross(idx){
   return 0;
 }
 
+// 매수신호: MA40 추세방향이 상승(+1) AND 종가>MA40 AND 종가>MA10, 3가지가 동시에 충족되는 캔들
+function buySignalAt(idx){
+  if(idx<0||idx>=candles.length)return false;
+  if(ma40Dir(idx)!==1)return false;
+  const c=closeAt(idx),m40=ma(40,idx),m10=ma(10,idx);
+  if(c===undefined||m40===null||m10===null)return false;
+  return c>m40&&c>m10;
+}
+// 조건을 만족한 캔들부터 그 캔들 포함 3개 캔들 동안 신호 유지
+function buySignalWindow(idx){
+  for(let k=0;k<3;k++)if(buySignalAt(idx-k))return true;
+  return false;
+}
+
 // ── 스냅샷 (풍부한 지표) ────────────────────────────────────
 function snapshot(idx){
   if(idx<0||idx>=candles.length)return null;
@@ -523,6 +537,18 @@ Chart.register({id:'ann',afterDraw(chart){
         ctx.beginPath();ctx.moveTo(px,tailY);ctx.lineTo(px,tipY);ctx.stroke();
         ctx.beginPath();ctx.moveTo(px-headW,tipY-headLen);ctx.lineTo(px,tipY);ctx.lineTo(px+headW,tipY-headLen);ctx.stroke();
       }
+    }else if(a.t==='corner'){
+      // 차트 좌하단 구석에 작은 뱃지로 텍스트 표시 (데이터 좌표가 아닌 chartArea 기준 고정 위치)
+      ctx.font='bold 11px -apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
+      const tw=ctx.measureText(a.text).width;
+      const padX=6,padY=4,bx=chartArea.left+4,by=chartArea.bottom-4-(11+padY*2);
+      ctx.fillStyle=a.bg||'rgba(217,48,37,.92)';
+      ctx.beginPath();
+      ctx.roundRect?ctx.roundRect(bx,by,tw+padX*2,11+padY*2,4):ctx.rect(bx,by,tw+padX*2,11+padY*2);
+      ctx.fill();
+      ctx.fillStyle=a.fg||'#fff';
+      ctx.textBaseline='middle';
+      ctx.fillText(a.text,bx+padX,by+(11+padY*2)/2+1);
     }
   }
   ctx.restore();
@@ -672,7 +698,7 @@ const MPC=new Chart(document.getElementById('cMaPos'),{
     plugins:{legend:{display:false},tooltip:{enabled:false}}
   },plugins:[]
 });
-// MA5과 캔들위치 차트 (MA10과 캔들위치와 동일한 색 규칙 — 종가>=MA5 빨강 / 종가<MA5 파랑)
+// MA5와 캔들위치 차트 (MA10과 캔들위치와 동일한 색 규칙 — 종가>=MA5 빨강 / 종가<MA5 파랑)
 const MP5C=new Chart(document.getElementById('cMaPos5'),{
   type:'bar',
   data:{labels:[],datasets:[{label:'MA5위치',data:[],backgroundColor:[]}]},
@@ -746,9 +772,9 @@ PC.data.datasets=[
   {label:'MA10',data:[],borderColor:'#F5A623',borderWidth:1.3,pointRadius:0,tension:.1,spanGaps:true,hidden:!showMA10},
   {label:'MA40',data:[],borderColor:'#0F6E56',borderWidth:1.3,pointRadius:0,tension:.1,spanGaps:true},
   {label:'BB상단',data:[],borderColor:'#9C6ADE',borderWidth:1,pointRadius:0,tension:.1,spanGaps:true,borderDash:[4,3],hidden:!showBB},
-  {label:'BB하단',data:[],borderColor:'#9C6ADE',borderWidth:1,pointRadius:0,tension:.1,spanGaps:true,borderDash:[4,3],hidden:!showBB,fill:2,backgroundColor:'rgba(156,106,222,0.07)'},
+  {label:'BB하단',data:[],borderColor:'#9C6ADE',borderWidth:1,pointRadius:0,tension:.1,spanGaps:true,borderDash:[4,3],hidden:!showBB,fill:3,backgroundColor:'rgba(156,106,222,0.07)'},
   {label:'선행스팬1',data:[],borderColor:'#E8975C',borderWidth:1,pointRadius:0,tension:.1,spanGaps:true,hidden:!showIchi},
-  {label:'선행스팬2',data:[],borderColor:'#4A90D9',borderWidth:1,pointRadius:0,tension:.1,spanGaps:true,hidden:!showIchi,fill:4,backgroundColor:'rgba(74,144,217,0.07)'},
+  {label:'선행스팬2',data:[],borderColor:'#4A90D9',borderWidth:1,pointRadius:0,tension:.1,spanGaps:true,hidden:!showIchi,fill:5,backgroundColor:'rgba(74,144,217,0.07)'},
 ];
 
 // ── 뷰 계산 ──────────────────────────────────────────────────
@@ -797,6 +823,10 @@ function buildPA(){
   if(showIchi&&candles.length>0){
     const curLi=pad+(candles.length-1-s)+ICHI_SHIFT;
     list.push({t:'vline',xi:curLi,cl:'rgba(0,0,0,.75)',w:1.5,dash:[2,3]});
+  }
+  // 매수신호: MA40추세+ AND 종가>MA40 AND 종가>MA10 조건을 만족한 캔들부터 3봉간 좌하단에 표시
+  if(candles.length>0&&buySignalWindow(candles.length-1)){
+    list.push({t:'corner',text:'매수신호'});
   }
   return list;
 }
@@ -911,11 +941,11 @@ function refresh(){
   else if(lastMaPos<0){maPosEl.textContent='아래';maPosEl.style.color='#38B6E0';}
   else{maPosEl.textContent='동일';maPosEl.style.color='#1a1a1a';}
 
-  // MA5과 캔들위치 차트 (MA10과 캔들위치와 동일한 색 규칙 — 종가>=MA5 빨강, 종가<MA5 파랑)
+  // MA5와 캔들위치 차트 (MA10과 캔들위치와 동일한 색 규칙 — 종가>=MA5 빨강, 종가<MA5 파랑)
   MP5C.data.labels=lbls;
   const mp5Data=vdata(i=>maPosDiff(i,5));
   MP5C.data.datasets[0].data=mp5Data;
-  MP5C.data.datasets[0].backgroundColor=mp5Data.map(v=>v===null?'rgba(0,0,0,0)':v>0?'#F5A623':v<0?'#38B6E0':'#1a1a1a');
+  MP5C.data.datasets[0].backgroundColor=mp5Data.map(v=>(!showMA5||v===null)?'rgba(0,0,0,0)':v>0?'#F5A623':v<0?'#38B6E0':'#1a1a1a');
   const lastMaPos5=maPosDiff(candles.length-1,5);
   const maPos5El=document.getElementById('vMaPos5');
   if(lastMaPos5===null){maPos5El.textContent='-';maPos5El.style.color='#555';}
