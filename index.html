@@ -735,7 +735,9 @@ function vdata(fn){
 function vdataShift(fn,shift){
   const s=vs(),pad=padOffset(),totalLen=VIS+VP+ICHI_SHIFT;
   const arr=new Array(totalLen).fill(null);
-  for(let i=s;i<candles.length;i++){
+  // i=s부터가 아니라 s-shift부터 계산해야, 화면 맨 왼쪽(전일 tail 구간)에서도
+  // 끊김 없이 이어져 그려짐 (fn이 음수 idx도 histCandles를 통해 처리하므로 안전)
+  for(let i=s-shift;i<candles.length;i++){
     const pos=pad+(i-s)+shift;
     if(pos>=0&&pos<totalLen)arr[pos]=fn(i);
   }
