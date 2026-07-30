@@ -1,4 +1,4 @@
-#stock_simul_1min
+#stock_simul_1min 
 
 # stock_sim_2day — 필터 없는 이틀치 종목 매매 시뮬레이션 (데이터 재사용 버전)
 
