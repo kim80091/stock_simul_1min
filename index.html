@@ -127,6 +127,16 @@ button:active{opacity:.8;}
     MA10
   </label>
 </div>
+<div class="row" style="margin-bottom:4px;">
+  <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;color:#0F6E56;font-weight:600;">
+    <input type="checkbox" id="ma30Toggle" style="width:15px;height:15px;cursor:pointer;" checked>
+    MA30
+  </label>
+  <label style="display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;color:#0F6E56;font-weight:600;">
+    <input type="checkbox" id="ma40Toggle" style="width:15px;height:15px;cursor:pointer;" checked>
+    MA40
+  </label>
+</div>
 <div class="cbox"><div class="cwrap pc"><canvas id="cPrice"></canvas></div></div>
 <div class="tradebar">
   <button class="g hideMob" id="btnBuyHalf">1/2분할매수</button>
@@ -141,6 +151,26 @@ button:active{opacity:.8;}
   <button class="r" id="btnSellM">매도</button>
   <button class="r" id="btnSellHalfM">½매도</button>
   <button id="btnToggleTM">▶</button>
+</div>
+<div class="cbox">
+  <div class="ddrow"><span>매수신호</span><span class="ddval" id="vBuySig" style="color:#555;">-</span></div>
+  <div class="cwrap" style="height:40px;"><canvas id="cBuySig"></canvas></div>
+</div>
+<div class="cbox">
+  <div class="ddrow"><span>매도신호</span><span class="ddval" id="vSellSig" style="color:#555;">-</span></div>
+  <div class="cwrap" style="height:40px;"><canvas id="cSellSig"></canvas></div>
+</div>
+<div class="cbox">
+  <div class="ddrow"><span>MA30 추세</span><span class="ddval" id="vMa30Trend" style="color:#378ADD;">-</span></div>
+  <div class="cwrap" style="height:40px;"><canvas id="cMa30Trend"></canvas></div>
+</div>
+<div class="cbox">
+  <div class="ddrow"><span>볼린저밴드 터치</span><span class="ddval" id="vBbTouch" style="color:#555;">-</span></div>
+  <div class="cwrap" style="height:40px;"><canvas id="cBbTouch"></canvas></div>
+</div>
+<div class="cbox">
+  <div class="ddrow"><span>거래대금</span><span class="ddval" id="vValue" style="color:#555;">-</span></div>
+  <div class="cwrap" style="height:40px;"><canvas id="cValue"></canvas></div>
 </div>
 <div class="cbox">
   <div class="ddrow"><span>MA40 추세 방향</span><span class="ddval" id="vMaTrend" style="color:#378ADD;">-</span></div>
@@ -161,10 +191,6 @@ button:active{opacity:.8;}
 <div class="cbox">
   <div class="ddrow"><span>볼린저밴드 이격</span><span class="ddval" id="vBbDev" style="color:#555;">-</span></div>
   <div class="cwrap" style="height:40px;"><canvas id="cBbDev"></canvas></div>
-</div>
-<div class="cbox">
-  <div class="ddrow"><span>거래대금</span><span class="ddval" id="vValue" style="color:#555;">-</span></div>
-  <div class="cwrap" style="height:40px;"><canvas id="cValue"></canvas></div>
 </div>
 <div class="cbox">
   <div class="ddrow"><span>OBV (Signal 10, 단순)</span><span class="ddval" id="vObv" style="color:#555;">-</span></div>
@@ -366,15 +392,17 @@ function volSignal(idx){
   return(ratio>90&&value>=2000000000);
 }
 
-// MA40 방향: 현재 MA40 > 직전 MA40 → 1(상승), < → -1(하락), = → 0(횡보)
-function ma40Dir(idx){
-  const cur=ma(40,idx);
-  const prev=ma(40,idx-1);
+// MA 방향 (기간 일반화): 현재 MA > 직전 MA → 1(상승), < → -1(하락), = → 0(횡보)
+function maDir(period,idx){
+  const cur=ma(period,idx);
+  const prev=ma(period,idx-1);
   if(cur===null||prev===null)return 0;
   if(cur>prev)return 1;
   if(cur<prev)return -1;
   return 0;
 }
+// MA40 방향: 현재 MA40 > 직전 MA40 → 1(상승), < → -1(하락), = → 0(횡보)
+function ma40Dir(idx){return maDir(40,idx);}
 
 // MA40 크로스 신호
 // CrossUp(C,M): 직전 종가 < MA40 이고 현재 종가 >= MA40 → 골든크로스 1 (주황)
@@ -390,7 +418,46 @@ function ma40Cross(idx){
   return 0;
 }
 
-// 매수신호: MA40 추세방향이 상승(+1) AND 종가>MA40 AND 종가>MA10, 3가지가 동시에 충족되는 캔들
+// 범용 크로스업/크로스다운 (기간 지정 가능한 MA 기준)
+function crossUpMA(idx,period){
+  const curC=closeAt(idx),prevC=closeAt(idx-1);
+  const curM=ma(period,idx),prevM=ma(period,idx-1);
+  if(curC===undefined||prevC===undefined||curM===null||prevM===null)return false;
+  return prevC<prevM&&curC>=curM;
+}
+function crossDownMA(idx,period){
+  const curC=closeAt(idx),prevC=closeAt(idx-1);
+  const curM=ma(period,idx),prevM=ma(period,idx-1);
+  if(curC===undefined||prevC===undefined||curM===null||prevM===null)return false;
+  return prevC>prevM&&curC<=curM;
+}
+
+// [보조지표] 매수신호: T0=MA30, T1=전봉 MA30, M10=MA10
+// T0<T1 (MA30 하락 전환) AND C>T0 AND C>M10 → 1, 아니면 0
+function buySigBarValue(idx){
+  const t0=ma(30,idx),t1=ma(30,idx-1),m10=ma(10,idx),c=closeAt(idx);
+  if(t0===null||t1===null||m10===null||c===undefined)return 0;
+  return(t0<t1&&c>t0&&c>m10)?1:0;
+}
+
+// [보조지표] 매도신호: M=MA5; CrossUp(C,M)→0.0, CrossDown(C,M)→0.75, 그 외 0
+function sellSigBarValue(idx){
+  if(crossUpMA(idx,5))return 0;
+  if(crossDownMA(idx,5))return 0.75;
+  return 0;
+}
+
+// [보조지표] 볼린저밴드 터치: H>=상단 → 1, L<=하단 → -1, 그 외 0
+function bbTouch(idx){
+  const u=bbUpper(idx),lo=bbLower(idx);
+  const h=highAt(idx),l=lowAt(idx);
+  if(u===null||lo===null||h===undefined||l===undefined)return 0;
+  if(h>=u)return 1;
+  if(l<=lo)return -1;
+  return 0;
+}
+
+// 매수신호(차트 좌하단 뱃지용): MA40 추세방향이 상승(+1) AND 종가>MA40 AND 종가>MA10, 3가지가 동시에 충족되는 캔들
 function buySignalAt(idx){
   if(idx<0||idx>=candles.length)return false;
   if(ma40Dir(idx)!==1)return false;
@@ -604,6 +671,75 @@ PC.options.scales.x.afterBuildTicks=function(axis){
 };
 
 
+// 매수신호 차트 (T0=MA30<T1=전봉MA30 AND C>T0 AND C>M10 → 1, 아니면 0) — 연두색 막대
+const BUYSIG=new Chart(document.getElementById('cBuySig'),{
+  type:'bar',
+  data:{labels:[],datasets:[{label:'매수신호',data:[],backgroundColor:[]}]},
+  options:{
+    responsive:true,maintainAspectRatio:false,animation:false,
+    layout:{padding:{left:4,right:4}},
+    scales:{
+      x:{ticks:{display:false},grid:{display:false},min:0,max:VIS+VP-1+ICHI_SHIFT},
+      y:{position:'right',min:-.3,max:1.3,
+        ticks:{font:{size:10},padding:6,callback:v=>''},
+        afterFit:s=>{s.width=64;},
+        grid:{color:'rgba(128,128,128,.1)'}}
+    },
+    plugins:{legend:{display:false},tooltip:{enabled:false}}
+  },plugins:[]
+});
+// 매도신호 차트 (M=MA5, CrossDown(C,M)→0.75, CrossUp(C,M)→0, 그외 0) — 음봉과 동일한 파란색
+const SELLSIG=new Chart(document.getElementById('cSellSig'),{
+  type:'bar',
+  data:{labels:[],datasets:[{label:'매도신호',data:[],backgroundColor:[]}]},
+  options:{
+    responsive:true,maintainAspectRatio:false,animation:false,
+    layout:{padding:{left:4,right:4}},
+    scales:{
+      x:{ticks:{display:false},grid:{display:false},min:0,max:VIS+VP-1+ICHI_SHIFT},
+      y:{position:'right',min:-.3,max:1.3,
+        ticks:{font:{size:10},padding:6,callback:v=>''},
+        afterFit:s=>{s.width=64;},
+        grid:{color:'rgba(128,128,128,.1)'}}
+    },
+    plugins:{legend:{display:false},tooltip:{enabled:false}}
+  },plugins:[]
+});
+// MA30 추세 차트 (MA40 추세 방향과 동일한 방식, 기간만 30)
+const MT30=new Chart(document.getElementById('cMa30Trend'),{
+  type:'bar',
+  data:{labels:[],datasets:[{label:'MA30방향',data:[],backgroundColor:[]}]},
+  options:{
+    responsive:true,maintainAspectRatio:false,animation:false,
+    layout:{padding:{left:4,right:4}},
+    scales:{
+      x:{ticks:{display:false},grid:{display:false},min:0,max:VIS+VP-1+ICHI_SHIFT},
+      y:{position:'right',min:-1.5,max:1.5,
+        ticks:{font:{size:10},padding:6,callback:v=>v===1?'상승':v===-1?'하락':'',stepSize:1},
+        afterFit:s=>{s.width=64;},
+        grid:{color:'rgba(128,128,128,.1)'}}
+    },
+    plugins:{legend:{display:false},tooltip:{enabled:false}}
+  },plugins:[]
+});
+// 볼린저밴드 터치 차트 (상단터치 +1 / 하단터치 -1 / 그외 0) — BB상단선과 동일한 보라색
+const BBTOUCH=new Chart(document.getElementById('cBbTouch'),{
+  type:'bar',
+  data:{labels:[],datasets:[{label:'BB터치',data:[],backgroundColor:[]}]},
+  options:{
+    responsive:true,maintainAspectRatio:false,animation:false,
+    layout:{padding:{left:4,right:4}},
+    scales:{
+      x:{ticks:{display:false},grid:{display:false},min:0,max:VIS+VP-1+ICHI_SHIFT},
+      y:{position:'right',min:-1.5,max:1.5,
+        ticks:{font:{size:10},padding:6,callback:v=>v===1?'상단':v===-1?'하단':'',stepSize:1},
+        afterFit:s=>{s.width=64;},
+        grid:{color:'rgba(128,128,128,.1)'}}
+    },
+    plugins:{legend:{display:false},tooltip:{enabled:false}}
+  },plugins:[]
+});
+
 // MA40 추세 방향 차트 (막대: 1=상승/빨강, -1=하락/파랑, 0=횡보/회색)
 const MT=new Chart(document.getElementById('cMaTrend'),{
   type:'bar',
@@ -766,15 +902,18 @@ let showBB=false; // 볼린저밴드 표시 여부 (토글)
 let showIchi=false; // 일목균형표 표시 여부 (토글)
 let showMA5=false; // MA5 표시 여부 (토글)
 let showMA10=true; // MA10 표시 여부 (토글, 기본 표시)
+let showMA30=true; // MA30 표시 여부 (토글, 기본 표시)
+let showMA40=true; // MA40 표시 여부 (토글, 기본 표시)
 
 PC.data.datasets=[
   {label:'MA5',data:[],borderColor:'#E24B4A',borderWidth:1.3,pointRadius:0,tension:.1,spanGaps:true,hidden:!showMA5},
   {label:'MA10',data:[],borderColor:'#F5A623',borderWidth:1.3,pointRadius:0,tension:.1,spanGaps:true,hidden:!showMA10},
-  {label:'MA40',data:[],borderColor:'#0F6E56',borderWidth:1.3,pointRadius:0,tension:.1,spanGaps:true},
+  {label:'MA30',data:[],borderColor:'#0F6E56',borderWidth:1.3,pointRadius:0,tension:.1,spanGaps:true,hidden:!showMA30},
+  {label:'MA40',data:[],borderColor:'#0F6E56',borderWidth:1.3,pointRadius:0,tension:.1,spanGaps:true,hidden:!showMA40},
   {label:'BB상단',data:[],borderColor:'#9C6ADE',borderWidth:1,pointRadius:0,tension:.1,spanGaps:true,borderDash:[4,3],hidden:!showBB},
-  {label:'BB하단',data:[],borderColor:'#9C6ADE',borderWidth:1,pointRadius:0,tension:.1,spanGaps:true,borderDash:[4,3],hidden:!showBB,fill:3,backgroundColor:'rgba(156,106,222,0.07)'},
+  {label:'BB하단',data:[],borderColor:'#9C6ADE',borderWidth:1,pointRadius:0,tension:.1,spanGaps:true,borderDash:[4,3],hidden:!showBB,fill:4,backgroundColor:'rgba(156,106,222,0.07)'},
   {label:'선행스팬1',data:[],borderColor:'#E8975C',borderWidth:1,pointRadius:0,tension:.1,spanGaps:true,hidden:!showIchi},
-  {label:'선행스팬2',data:[],borderColor:'#4A90D9',borderWidth:1,pointRadius:0,tension:.1,spanGaps:true,hidden:!showIchi,fill:5,backgroundColor:'rgba(74,144,217,0.07)'},
+  {label:'선행스팬2',data:[],borderColor:'#4A90D9',borderWidth:1,pointRadius:0,tension:.1,spanGaps:true,hidden:!showIchi,fill:6,backgroundColor:'rgba(74,144,217,0.07)'},
 ];
 
 // ── 뷰 계산 ──────────────────────────────────────────────────
@@ -837,11 +976,12 @@ function refresh(){
   PC.data.labels=mkLblPC();
   PC.data.datasets[0].data=vdata(i=>ma(5,i));
   PC.data.datasets[1].data=vdata(i=>ma(10,i));
-  PC.data.datasets[2].data=vdata(i=>ma(40,i));
-  PC.data.datasets[3].data=vdata(i=>bbUpper(i));
-  PC.data.datasets[4].data=vdata(i=>bbLower(i));
-  PC.data.datasets[5].data=vdataShift(i=>ichiSenkouA(i),ICHI_SHIFT);
-  PC.data.datasets[6].data=vdataShift(i=>ichiSenkouB(i),ICHI_SHIFT);
+  PC.data.datasets[2].data=vdata(i=>ma(30,i));
+  PC.data.datasets[3].data=vdata(i=>ma(40,i));
+  PC.data.datasets[4].data=vdata(i=>bbUpper(i));
+  PC.data.datasets[5].data=vdata(i=>bbLower(i));
+  PC.data.datasets[6].data=vdataShift(i=>ichiSenkouA(i),ICHI_SHIFT);
+  PC.data.datasets[7].data=vdataShift(i=>ichiSenkouB(i),ICHI_SHIFT);
   PC.options.plugins.ann.list=buildPA();
   let mn=Infinity,mx=-Infinity;
   for(let i=s;i<candles.length;i++){
@@ -860,6 +1000,52 @@ function refresh(){
   }
   const pd=(mx-mn)*.08;
   PC.options.scales.y.min=mn-pd;PC.options.scales.y.max=mx+pd;
+
+  // 매수신호 차트 (연두색)
+  const BUYSIG_COLOR='#7CFC00';
+  BUYSIG.data.labels=lbls;
+  const buyData=vdata(i=>buySigBarValue(i));
+  BUYSIG.data.datasets[0].data=buyData;
+  BUYSIG.data.datasets[0].backgroundColor=buyData.map(v=>(v===null||v===0)?'rgba(0,0,0,0)':BUYSIG_COLOR);
+  const lastBuySig=buySigBarValue(candles.length-1);
+  const buySigEl=document.getElementById('vBuySig');
+  if(lastBuySig>0){buySigEl.textContent='신호';buySigEl.style.color=BUYSIG_COLOR;}
+  else{buySigEl.textContent='-';buySigEl.style.color='#555';}
+
+  // 매도신호 차트 (음봉과 동일한 파란색)
+  SELLSIG.data.labels=lbls;
+  const sellData=vdata(i=>sellSigBarValue(i));
+  SELLSIG.data.datasets[0].data=sellData;
+  SELLSIG.data.datasets[0].backgroundColor=sellData.map(v=>(v===null||v===0)?'rgba(0,0,0,0)':dC);
+  const lastSellSig=sellSigBarValue(candles.length-1);
+  const sellSigEl=document.getElementById('vSellSig');
+  if(lastSellSig>0){sellSigEl.textContent='신호';sellSigEl.style.color=dC;}
+  else{sellSigEl.textContent='-';sellSigEl.style.color='#555';}
+
+  // MA30 추세 차트
+  MT30.data.labels=lbls;
+  const mt30Data=vdata(i=>maDir(30,i));
+  MT30.data.datasets[0].data=mt30Data;
+  MT30.data.datasets[0].backgroundColor=mt30Data.map(v=>
+    v===1?pC:v===-1?lC:'rgba(180,180,180,0.4)'
+  );
+  const lastDir30=maDir(30,candles.length-1);
+  const trend30El=document.getElementById('vMa30Trend');
+  if(lastDir30===1){trend30El.textContent='▲ 상승';trend30El.style.color=pC;}
+  else if(lastDir30===-1){trend30El.textContent='▼ 하락';trend30El.style.color=lC;}
+  else{trend30El.textContent='— 횡보';trend30El.style.color='#888';}
+
+  // 볼린저밴드 터치 차트 (BB상단선과 동일한 보라색)
+  const BB_TOUCH_COLOR='#9C6ADE';
+  BBTOUCH.data.labels=lbls;
+  const bbtData=vdata(i=>bbTouch(i));
+  BBTOUCH.data.datasets[0].data=bbtData;
+  BBTOUCH.data.datasets[0].backgroundColor=bbtData.map(v=>v===0?'rgba(0,0,0,0)':BB_TOUCH_COLOR);
+  const lastBbTouch=bbTouch(candles.length-1);
+  const bbTouchEl=document.getElementById('vBbTouch');
+  if(lastBbTouch===1){bbTouchEl.textContent='상단터치';bbTouchEl.style.color=BB_TOUCH_COLOR;}
+  else if(lastBbTouch===-1){bbTouchEl.textContent='하단터치';bbTouchEl.style.color=BB_TOUCH_COLOR;}
+  else{bbTouchEl.textContent='-';bbTouchEl.style.color='#555';}
 
   // MA40 추세 방향 차트
   MT.data.labels=lbls;
@@ -972,7 +1158,7 @@ function refresh(){
   const lastValue=candles[candles.length-1].volume*candles[candles.length-1].close;
   document.getElementById('vValue').textContent=fmtEok(lastValue)+'억';
 
-  PC.update('none');MT.update('none');MC.update('none');OC.update('none');VLC.update('none');BDC.update('none');MPC.update('none');MP5C.update('none');OTC.update('none');
+  PC.update('none');MT.update('none');MC.update('none');OC.update('none');VLC.update('none');BDC.update('none');MPC.update('none');MP5C.update('none');OTC.update('none');BUYSIG.update('none');SELLSIG.update('none');MT30.update('none');BBTOUCH.update('none');
   updateUI();
 }
 
@@ -1396,15 +1582,15 @@ document.getElementById('btnAiRequest').onclick=()=>{
 document.getElementById('bbToggle').onchange=(e)=>{
   showBB=e.target.checked;
   localStorage.setItem('bb_enabled',showBB?'1':'0');
-  PC.data.datasets[3].hidden=!showBB;
   PC.data.datasets[4].hidden=!showBB;
+  PC.data.datasets[5].hidden=!showBB;
   refresh();
 };
 document.getElementById('ichiToggle').onchange=(e)=>{
   showIchi=e.target.checked;
   localStorage.setItem('ichi_enabled',showIchi?'1':'0');
-  PC.data.datasets[5].hidden=!showIchi;
   PC.data.datasets[6].hidden=!showIchi;
+  PC.data.datasets[7].hidden=!showIchi;
   refresh();
 };
 document.getElementById('ma5Toggle').onchange=(e)=>{
@@ -1417,6 +1603,18 @@ document.getElementById('ma10Toggle').onchange=(e)=>{
   showMA10=e.target.checked;
   localStorage.setItem('ma10_enabled',showMA10?'1':'0');
   PC.data.datasets[1].hidden=!showMA10;
+  refresh();
+};
+document.getElementById('ma30Toggle').onchange=(e)=>{
+  showMA30=e.target.checked;
+  localStorage.setItem('ma30_enabled',showMA30?'1':'0');
+  PC.data.datasets[2].hidden=!showMA30;
+  refresh();
+};
+document.getElementById('ma40Toggle').onchange=(e)=>{
+  showMA40=e.target.checked;
+  localStorage.setItem('ma40_enabled',showMA40?'1':'0');
+  PC.data.datasets[3].hidden=!showMA40;
   refresh();
 };
 document.getElementById('btnLoad').onclick=()=>{
@@ -1463,8 +1661,8 @@ try{
   if(savedBB==='1'){
     showBB=true;
     document.getElementById('bbToggle').checked=true;
-    PC.data.datasets[3].hidden=false;
     PC.data.datasets[4].hidden=false;
+    PC.data.datasets[5].hidden=false;
   }
 }catch(e){/* localStorage 사용 불가 환경이면 그냥 기본값(꺼짐) 유지 */}
 
@@ -1474,8 +1672,8 @@ try{
   if(savedIchi==='1'){
     showIchi=true;
     document.getElementById('ichiToggle').checked=true;
-    PC.data.datasets[5].hidden=false;
     PC.data.datasets[6].hidden=false;
+    PC.data.datasets[7].hidden=false;
   }
 }catch(e){/* localStorage 사용 불가 환경이면 그냥 기본값(꺼짐) 유지 */}
 
@@ -1496,6 +1694,26 @@ try{
     showMA10=false;
     document.getElementById('ma10Toggle').checked=false;
     PC.data.datasets[1].hidden=true;
+  }
+}catch(e){/* localStorage 사용 불가 환경이면 그냥 기본값(켜짐) 유지 */}
+
+// 저장된 MA30 설정 복원 (기본값 켜짐 — 저장된 값이 명시적으로 '0'일 때만 끔)
+try{
+  const savedMA30=localStorage.getItem('ma30_enabled');
+  if(savedMA30==='0'){
+    showMA30=false;
+    document.getElementById('ma30Toggle').checked=false;
+    PC.data.datasets[2].hidden=true;
+  }
+}catch(e){/* localStorage 사용 불가 환경이면 그냥 기본값(켜짐) 유지 */}
+
+// 저장된 MA40 설정 복원 (기본값 켜짐 — 저장된 값이 명시적으로 '0'일 때만 끔)
+try{
+  const savedMA40=localStorage.getItem('ma40_enabled');
+  if(savedMA40==='0'){
+    showMA40=false;
+    document.getElementById('ma40Toggle').checked=false;
+    PC.data.datasets[3].hidden=true;
   }
 }catch(e){/* localStorage 사용 불가 환경이면 그냥 기본값(켜짐) 유지 */}
 
