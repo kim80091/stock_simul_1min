@@ -604,17 +604,19 @@ Chart.register({id:'ann',afterDraw(chart){
         ctx.beginPath();ctx.moveTo(px-headW,tipY-headLen);ctx.lineTo(px,tipY);ctx.lineTo(px+headW,tipY-headLen);ctx.stroke();
       }
     }else if(a.t==='corner'){
-      // 차트 좌하단 구석에 작은 뱃지로 텍스트 표시 (데이터 좌표가 아닌 chartArea 기준 고정 위치)
+      // 차트 구석에 작은 뱃지로 텍스트 표시 (데이터 좌표가 아닌 chartArea 기준 고정 위치)
+      // pos: 'bl'(기본, 좌하단) | 'tl'(좌상단)
       ctx.font='bold 11px -apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif';
       const tw=ctx.measureText(a.text).width;
-      const padX=6,padY=4,bx=chartArea.left+4,by=chartArea.bottom-4-(11+padY*2);
+      const padX=6,padY=4,boxH=11+padY*2,bx=chartArea.left+4;
+      const by=(a.pos==='tl')?(chartArea.top+4):(chartArea.bottom-4-boxH);
       ctx.fillStyle=a.bg||'rgba(217,48,37,.92)';
       ctx.beginPath();
-      ctx.roundRect?ctx.roundRect(bx,by,tw+padX*2,11+padY*2,4):ctx.rect(bx,by,tw+padX*2,11+padY*2);
+      ctx.roundRect?ctx.roundRect(bx,by,tw+padX*2,boxH,4):ctx.rect(bx,by,tw+padX*2,boxH);
       ctx.fill();
       ctx.fillStyle=a.fg||'#fff';
       ctx.textBaseline='middle';
-      ctx.fillText(a.text,bx+padX,by+(11+padY*2)/2+1);
+      ctx.fillText(a.text,bx+padX,by+boxH/2+1);
     }
   }
   ctx.restore();
@@ -966,6 +968,10 @@ function buildPA(){
   // 매수신호: MA40추세+ AND 종가>MA40 AND 종가>MA10 조건을 만족한 캔들부터 3봉간 좌하단에 표시
   if(candles.length>0&&buySignalWindow(candles.length-1)){
     list.push({t:'corner',text:'매수신호'});
+  }
+  // 데이터 누락: 오늘 또는 전일 tail 데이터가 장마감(20:00)까지 채워지지 않았으면 좌상단에 작게 경고 표시
+  if(window._dataMissing){
+    list.push({t:'corner',text:window._dataMissingLabel||'데이터 누락',pos:'tl',bg:'rgba(230,126,34,.92)'});
   }
   return list;
 }
@@ -1416,6 +1422,20 @@ async function loadReal(code, date){
     const dateCompact=(curStock.date||date).replace(/-/g,'');
     const missingTxt=(js.missing_minutes&&js.missing_minutes>0)?' (부분누락)':'';
     setBanner('📈 '+curStock.name+' | '+dateCompact+' | '+firstT+'~'+lastT+missingTxt,'breal');
+
+    // 데이터 누락 점검: 오늘 데이터와 전일 tail 데이터 둘 다 장마감(20:00) 근처까지 채워졌는지 확인
+    // (예: 07-30 종목을 보려면 07-29 tail과 07-30 당일 데이터가 둘 다 끝까지 있어야 함)
+    const SESSION_END_CUTOFF='19:55';
+    const todayIncomplete=!!(lastT&&lastT<SESSION_END_CUTOFF);
+    let tailIncomplete=false;
+    if(visiblePrefix.length>0){
+      const tailLastRaw=visiblePrefix[visiblePrefix.length-1].time;
+      const tailLastT=tailLastRaw?tailLastRaw.slice(11,16):'';
+      tailIncomplete=!!(tailLastT&&tailLastT<SESSION_END_CUTOFF);
+    }
+    window._dataMissing=todayIncomplete||tailIncomplete;
+    window._dataMissingLabel=todayIncomplete&&tailIncomplete?'데이터 누락(당일+전일)':todayIncomplete?'데이터 누락(당일)':tailIncomplete?'데이터 누락(전일)':'';
+
     hideOv();
   }catch(e){
     hideOv();alert('불러오기 실패: '+e.message);
