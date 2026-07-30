@@ -525,6 +525,7 @@ function maStatus(s){
 const uC='#E24B4A',dC='#378ADD',uV='rgba(226,75,74,.5)',dV='rgba(55,138,221,.5)';
 const bC='#0F6E56',sC='#993556';
 const pC='#D93025',lC='#2F6FD3'; // 손익 표시 전용: 수익=빨강, 손실=파랑
+const BUYSIG_COLOR='#7CFC00'; // 매수신호 보조지표/화살표 공용 색상 (연두색)
 
 Chart.register({id:'ann',afterDraw(chart){
   const o=chart.options.plugins&&chart.options.plugins.ann;
@@ -945,6 +946,7 @@ function buildPA(){
     list.push({t:'box',x1:li-.35,x2:li+.35,y1:Math.min(c.open,c.close),y2:Math.max(c.open,c.close),bg:up?uC:dC});
     list.push({t:'wick',xi:li,hi:c.high,lo:c.low,cl:up?uC:dC});
     if(i>=(window._todayStartIdx||0)&&volSignal(i))list.push({t:'dot',xi:li,yi:c.high});
+    if(buySigBarValue(i)===1)list.push({t:'arrow',xi:li,yi:c.high,cl:BUYSIG_COLOR,up:false,half:true});
   }
   trades.forEach(t=>{
     if(t.i<s||t.i>=candles.length)return;
@@ -1000,7 +1002,6 @@ function refresh(){
   PC.options.scales.y.min=mn-pd;PC.options.scales.y.max=mx+pd;
 
   // 매수신호 차트 (연두색)
-  const BUYSIG_COLOR='#7CFC00';
   BUYSIG.data.labels=lbls;
   const buyData=vdata(i=>buySigBarValue(i));
   BUYSIG.data.datasets[0].data=buyData;
